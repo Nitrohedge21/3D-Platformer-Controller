@@ -38,6 +38,9 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Forces")
 		float jumpForce = 1000.f;
 		float pushForce = 50.0f;
+		float boostForce = 110.0f;
+		float stompForce = 2000.0f;
+		float jumpDashForce = 500.0f;
 
 		UPROPERTY(EditAnywhere, Category = "Boost Stamina")
 			float currentStamina;
@@ -61,11 +64,10 @@ public:
 		void Move_LR(float axis);
 		void boostStart();
 		void boostEnd();
-		//void physicsJump();
-		void CheckJump();
 		void camReset();
 		void checkBoostMeter();
 		void Stomp();
+		void JumpDash();
 
 	UPROPERTY(EditAnywhere, Category = "States")
 		bool isJumping;
