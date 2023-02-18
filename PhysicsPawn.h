@@ -23,7 +23,7 @@ public:
 	// Sets default values for this pawn's properties
 	APhysicsPawn();
 	UPROPERTY(EditAnywhere)
-		UStaticMeshComponent* PawnMesh;
+	UStaticMeshComponent* PawnMesh;
 	UCapsuleComponent* CapsuleComponent;
 	UCharacterMovementComponent* MovementComponent;
 
@@ -36,21 +36,18 @@ public:
 
 
 	UPROPERTY(EditAnywhere, Category = "Forces")
-		float jumpForce = 1000.f;
 		float pushForce = 50.0f;
 		float boostForce = 110.0f;
 		float stompForce = 2000.0f;
 		float jumpDashForce = 500.0f;
 
-		UPROPERTY(EditAnywhere, Category = "Boost Stamina")
-			float currentStamina;
-			float maxStamina;
-			float staminaSprintUsageRate;
-			float staminaRechargeRate;
-			float delayForStaminaRecharge;
-			float canStaminaRecharge;
-	/*UPROPERTY(EditAnywhere, Category = Forces);
-	float Force = 1000.0f;*/
+	UPROPERTY(EditAnywhere, Category = "Boost Stamina")
+		float currentStamina;
+		float maxStamina;
+		float staminaSprintUsageRate;
+		float staminaRechargeRate;
+		float delayForStaminaRecharge;
+		float canStaminaRecharge;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 		USpringArmComponent* CameraBoom;
@@ -62,12 +59,14 @@ public:
 
 		void Move_FB(float axis);
 		void Move_LR(float axis);
+		void BoostLaunch(float axis);
 		void boostStart();
 		void boostEnd();
 		void camReset();
 		void checkBoostMeter();
 		void Stomp();
 		void JumpDash();
+		void raycastLine();
 
 	UPROPERTY(EditAnywhere, Category = "States")
 		bool isJumping;

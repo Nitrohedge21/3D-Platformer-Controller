@@ -21,17 +21,16 @@ APhysicsPawn::APhysicsPawn()
 	PrimaryActorTick.bCanEverTick = true;
 	AutoPossessPlayer = EAutoReceiveInput::Player0;
 
-	speed = APhysicsPawn::GetVelocity().X;
-	boostSpeed = 2500.0f;
+	speed = APhysicsPawn::GetVelocity().X;//This might be problematic, gotta check it out with someone.
+	boostSpeed = 5000.0f;
+	boostForce = 10.0f;
 	displayTime = 99999999;
-	//jumpForce = 500.0f;
 	isJumping = false;
 	isBoosting = false;
-
 	pushForce = 10.0f;
 	currentStamina = 1.0f;
 	maxStamina = 1.0f;
-	staminaSprintUsageRate = 0.05f;
+	staminaSprintUsageRate = 0.1f;
 	staminaRechargeRate = 0.1f;
 
 	PawnMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PawnMesh"));
@@ -42,18 +41,16 @@ APhysicsPawn::APhysicsPawn()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	
 	PawnMesh->SetWorldScale3D(FVector(1.5, 1.5, 1.5));
-	PawnMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -73.0f));
+	PawnMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -75.0f));
 	PawnMesh->SetStaticMesh(MeshRef.Object);
 	PawnMesh->SetupAttachment(GetRootComponent());
 	PawnMesh->SetSimulatePhysics(false);
 	PawnMesh->BodyInstance.bLockXRotation = true;
 	PawnMesh->BodyInstance.bLockYRotation = true;
 	PawnMesh->BodyInstance.bLockZRotation = true;
-	//PawnMesh->SetRelativeScale3D(FVector(1.25,1.25,1.25));
-	//Uncomment it if you want to go back to capsule
 	
-	GetCharacterMovement()->bOrientRotationToMovement = true;
-	GetCharacterMovement()->RotationRate = FRotator(0.0f, 2000.0f, 0.0f);
+	MovementComponent->bOrientRotationToMovement = true;
+	MovementComponent->RotationRate = FRotator(0.0f, 2000.0f, 0.0f);
 	// This used to be 500 but it was not turning to the faced direction in an instant. The documentation doesn't say shit either. Gotta Ask Matt
 	MovementComponent->MaxWalkSpeed = 2500.0f;
 	MovementComponent->JumpZVelocity = 400;
@@ -63,6 +60,8 @@ APhysicsPawn::APhysicsPawn()
 	MovementComponent->TouchForceFactor = speed / 0.5;
 	MovementComponent->BrakingFrictionFactor = 0;
 	MovementComponent->MaxAcceleration = 1536;
+	//MovementComponent->bScalePushForceToVelocity;
+	//Check the definition of this function.
 
 	//MovementComponent->PushForceFactor = APhysicsPawn::GetVelocity();
 	
@@ -70,30 +69,23 @@ APhysicsPawn::APhysicsPawn()
 	CapsuleComponent->BodyInstance.bLockXRotation = true;
 	CapsuleComponent->BodyInstance.bLockYRotation = true;
 	CapsuleComponent->BodyInstance.bLockZRotation = true;
+	CapsuleComponent->SetCapsuleHalfHeight(75);
+	CapsuleComponent->SetCapsuleRadius(40);
+	CapsuleComponent->SetRenderCustomDepth(true);
 
 	bUseControllerRotationPitch = false;
 	bUseControllerRotationYaw = false;
 	bUseControllerRotationRoll = false;
 
 	CameraBoom->SetupAttachment(RootComponent);
-	CameraBoom->TargetArmLength = 400.0f;
+	CameraBoom->TargetArmLength = 625.0f;
 	CameraBoom->bUsePawnControlRotation = true;
-	//CameraBoom->SetRelativeLocation(FVector(0.0f, 0.0f, 5.0f));
-	//[Important] Gotta fix on the camera's location and rotation!!!!!!!!!
 
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
 	FollowCamera->bUsePawnControlRotation = false;
-	FollowCamera->SetRelativeLocation(FVector(-225.0f, 0.0f, 82.0f));
+	FollowCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 0.0f));
 	FollowCamera->SetRelativeRotation(FRotator(0.0f, 0.0f, 0.0f));
 	FollowCamera->FieldOfView = 90.0f;
-
-	//Sets the size and location of things, got the reference from the blueprint.
-	PawnMesh->SetRelativeLocation(FVector(0, 0, -50));
-	//Apparently I made the line above to put the mesh inside the collider but i think this isn't the right way of doing it.
-	CapsuleComponent->SetCapsuleHalfHeight(80);
-	CapsuleComponent->SetCapsuleRadius(40);
-	//Set these back to 61x32 if you decide to set the object to sphere again. and the relative location to -60
-	//There might be an easier way of setting the capsule's size and height, saw something similar in the template's controller.
 }
 
 void APhysicsPawn::Move_FB(float axis)
@@ -133,21 +125,53 @@ void APhysicsPawn::boostStart()
 	//boost start and end needs more work on them, ask Matt for help.
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Black, TEXT("Boosting"));
 	isBoosting = true;
-	
 }
 
 void APhysicsPawn::boostEnd()
 {
 	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Black, TEXT("Running or walking"));
 	isBoosting = false;
+}
+
+void APhysicsPawn::BoostLaunch(float axis)
+{
+	//This function is going to stay here till i get the mechanic checked.
+	if (axis != 0.0f)
+	{
+		if (CapsuleComponent)
+		{
+			const FVector Forward = GetActorRotation().Vector();
+			AddMovementInput(Forward, axis);
+		}
+	}
+}
+
+// [EXPERIMENTAL FUNCTION!!!!]
+void APhysicsPawn::raycastLine()
+{
+	float lineLength = 40;
+	FHitResult OutHit;
+	FVector Start = CapsuleComponent->GetComponentLocation();
+	FVector ForwardVector = CapsuleComponent->GetForwardVector();
+	Start = Start + (ForwardVector * lineLength); // Set the starting point of the line
+	FVector End = Start + (ForwardVector * 150.f);	//Set the end point of the line
+
+	FCollisionQueryParams CollisionParams;
+	CollisionParams.AddIgnoredActor(this->GetOwner());
 	
+	//Draws the raycast line
+	DrawDebugLine(GetWorld(), Start, End, FColor::Red, false, 0, 0, 1);
+	bool IsHit = GetWorld()->LineTraceSingleByChannel(OutHit, Start, End, ECC_Visibility, CollisionParams);
+
+	if (IsHit)
+	{
+		GEngine->AddOnScreenDebugMessage(0, 5.f, FColor::Blue, TEXT("Raycast Line Collided with something"));
+	}
 }
 
 void APhysicsPawn::BeginPlay()
 {
 	Super::BeginPlay();
-	// I can not use this in the constructor because it does not work for some reason????
-	PawnMesh->SetRelativeLocation(FVector(0.0f, 0.0f, -73.0f));
 }
 
 
@@ -157,43 +181,42 @@ void APhysicsPawn::Tick(float DeltaTime)
 	//This part is essentially Update() from Unity. Super::Tick(DeltaTime); seems like it might be FixedUpdate() but gotta research this a bit further to see whether if it is useful or not.
 	Super::Tick(DeltaTime);
 
-	GEngine->AddOnScreenDebugMessage(0, displayTime, FColor::Green, FString::Printf(TEXT("SPEED: %s"), *APhysicsPawn::GetVelocity().ToString()));
-	//GEngine->AddOnScreenDebugMessage(0, displayTime, FColor::Blue, FString::Printf(TEXT("STAMINA: %f"), APhysicsPawn::currentStamina));
-	MovementComponent->bScalePushForceToVelocity;
+	//GEngine->AddOnScreenDebugMessage(0, displayTime, FColor::Green, FString::Printf(TEXT("SPEED: %s"), *APhysicsPawn::GetVelocity().ToString()));
+	GEngine->AddOnScreenDebugMessage(0, displayTime, FColor::Blue, FString::Printf(TEXT("STAMINA: %f"), APhysicsPawn::currentStamina));
+	//GEngine->AddOnScreenDebugMessage(0, displayTime, FColor::Green, FString::Printf(TEXT("Current Jump Count: %d"), APhysicsPawn::JumpCurrentCount));
 
-	if (isBoosting == true)
+	raycastLine();
+
+	if (isBoosting == true && currentStamina > 0)
 	{
-		//LaunchCharacter seems useful when it's mid air but acts weird when it's on ground.
+		//[TODO] Make the camera rotate to the direction that sonic is facing.
+		//These lines don't work outside of the Tick for some reason.
+		for (int i = 0; i < 1; i++)
+		{
+			BoostLaunch(1.0f);	//The float value has to be set to 1.0f in order to actually make Sonic move.
+			GEngine->AddOnScreenDebugMessage(1, 5.f, FColor::Red, TEXT("Initial Boost Launch"));
+			FollowCamera->bUsePawnControlRotation = true;
+		}
 
-		boostForce = 110;
-		const FVector Forward = this->GetActorRotation().Vector();
-		LaunchCharacter(Forward * boostForce, false, false);
-		//Make the player able to jump while in air.
+		MovementComponent->MaxWalkSpeed = FMath::Lerp(MovementComponent->MaxWalkSpeed, boostSpeed, 0.1f);
+		//Make the player able to jump while in air. - Genuinely have no clue what I was thinking about here, might be a typo. 02/02/2023
 		FollowCamera->SetFieldOfView(FMath::Lerp(FollowCamera->FieldOfView, 80.0f, 0.1f));
 
 		//Uses stamina while boost is happening
 		currentStamina = FMath::FInterpConstantTo(currentStamina, 0.0f, DeltaTime, staminaSprintUsageRate);
 	}
-	else
+	else if(isBoosting == false || (isBoosting == false && currentStamina < maxStamina))
 	{
+		MovementComponent->MaxWalkSpeed = FMath::Lerp(MovementComponent->MaxWalkSpeed, 2500.0f, 0.1f);
+		//Recharges stamina if it's lower than max stamina
+		currentStamina = FMath::FInterpConstantTo(currentStamina, maxStamina, DeltaTime, staminaRechargeRate);
 		camReset();
-		if (currentStamina < maxStamina)
-		{
-			//Recharges stamina if it's lower than max stamina
-			currentStamina = FMath::FInterpConstantTo(currentStamina, maxStamina, DeltaTime, staminaRechargeRate);
-		}
-		
+		FollowCamera->bUsePawnControlRotation = false;
 	}
-	/*if (APhysicsPawn::GetVelocity().X >= 2000)
+	if (currentStamina == 0.0f)
 	{
-		MovementComponent->Velocity.X = 2000;
-	}*/
-	//This part does not work, might just scrap the idea of limiting the speed for now.
-	/*if (isBoosting && MovementComponent->Velocity.X >= 2000)
-	{
-		boostForce = 1;
-	}*/
-
+		GEngine->AddOnScreenDebugMessage(1, 5.f, FColor::Red, TEXT("Ran out of stamina!"));
+	}
 }
 
 void APhysicsPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -214,36 +237,28 @@ void APhysicsPawn::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void APhysicsPawn::Stomp()
 {
-	//[IMPORTANT] Make it so that it can only do it when it's in air.
-
-	//Tried using bPressedJump to check if it's in air but didn't work.
-	//I don't think that it's gonna be an issue doing it this way.
-	if (MovementComponent->IsFalling())
+	//[IMPORTANT] Check Sonic Unleashed to see if you can stomp without needing to jump first.
+	// This fixed the spamming issue but might not be a good idea.
+	if (MovementComponent->IsFalling() && JumpCurrentCount == 1)
 	{
 		stompForce = 2500;
 		const FVector Downward = -GetActorUpVector();
 		// Made it override XY so that it does not maintain the momentum
-		LaunchCharacter(Downward * stompForce, true, true);
+		LaunchCharacter(Downward * stompForce, false, true);
+		JumpCurrentCount = 2; // StompJumping(); might be more useful for this part.
 	}
 }
 
 void APhysicsPawn::JumpDash()
 {
-	//The if state is not working, I can do the code inside to make it do the dash but gotta fix the if statement.
-	
-		if (MovementComponent->Velocity.Z++)
-		{
-			//Make it so that an int value gets set to 1 when it's done and it resets to 0 once it lands on ground.
-			// Make it only able to be performed while it's.
-
-			// if timer is running -> Do jump dash stuff
-			// if timer is not running -> Do jump stuff, THEN start the timer
-			jumpDashForce = 900;
-			const FVector Forward = GetActorRotation().Vector();
-			LaunchCharacter(Forward * jumpDashForce, false, false);
-		}
-	
-	
+	//I can use the code inside to make it do the dash but gotta fix the if statement.
+	if (!MovementComponent->IsMovingOnGround()&& JumpCurrentCount == 1)
+	{
+		jumpDashForce = 900;
+		const FVector Forward = GetActorRotation().Vector();
+		LaunchCharacter(Forward * jumpDashForce, false, false);
+		JumpCurrentCount = 2;
+	}
 }
 
 void APhysicsPawn::camReset()
@@ -259,93 +274,6 @@ void APhysicsPawn::camReset()
 void APhysicsPawn::checkBoostMeter()
 {
 	//Make a stamina bar that disables the boost ability when it's empty.
+	//Take a look at the sprinting guide to perhaps be able to fix this.
 }
 
-//Removing this code solved the issue with jump not working properly.
-//but changing the !V.IsNearlyZero() solved the jump issue as well.
-/*FVector V = GetVelocity();
-if (CapsuleComponent && V.IsNearlyZero())
-{
-	CapsuleComponent->AddForceAtLocation(V.Size() * V.GetSafeNormal(), GetActorLocation());
-}*/
-
-//Camera zoom in and out test using fov
-/*	for (FollowCamera->FieldOfView; FollowCamera->FieldOfView == 100.0f; FollowCamera->FieldOfView++);
-	for (FollowCamera->FieldOfView; FollowCamera->FieldOfView == 90.0f; FollowCamera->FieldOfView--);*/
-
-//Camera zoom code example from stackoverflow
-
-/*const float CurrentFOV = FollowCamera->FieldOfView;
-	const float InterpSpeed = 1.0f;
-	UWorld* World = GetWorld();
-	FollowCamera->FieldOfView = FMath::FInterpTo(CurrentFOV, 110.0f, World->GetTimeSeconds(), InterpSpeed);*/
-
-
-
-// PREVIOUS "MOVEMENT" CODE WITH SIMULATE PHYSICS TURNED ON
-
-	//Move Forward
-	/*const FRotator Rotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0, Rotation.Yaw, 0);
-	const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-
-	//CapsuleComponent->AddLocalRotation(FRotator(0,0,0)); // Tested this line to see if it would rotate
-	CapsuleComponent->AddForceAtLocationLocal(Direction * 5 * axis * speed, FVector::ZeroVector);*/
-
-	//Move LeftRight
-	/*const FRotator Rotation = Controller->GetControlRotation();
-	const FRotator YawRotation(0, Rotation.Yaw, 0);
-	const FVector Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-	//take a look at this code specifically, might have to do something about the drag force or something.
-	//the reason why it's able to move mid air is because it's not colliding with anything, but it might be applying force to push it back when it's on ground.
-	CapsuleComponent->AddForceAtLocationLocal(Direction * 5 * axis * speed, FVector::ZeroVector);*/
-
-	//Physics Jump
-	/*
-	void APhysicsPawn::physicsJump()
-	{
-		//Replace the physicsJump with CheckJump later on.
-		isJumping = true;
-		const FVector Up = CapsuleComponent->GetUpVector();
-		CapsuleComponent->AddImpulse(Up * jumpForce * CapsuleComponent->GetMass());
-	}
-	*/
-
-	//Check Jump
-	/*void APhysicsPawn::CheckJump()
-		{
-			if (isJumping == true && "Jump")
-			{
-				GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Black, TEXT("You can't jump midair"));
-			}
-			else if (isJumping == false && "Jump")
-			{
-				//physicsJump();
-
-				//isJumping = false;
-				//I have to do something similar to isGrounded from unity.
-				//I need to set it back to false once it collides with the ground.
-			}
-		}
-		*/
-
-	//Boost
-	/*
-	 //Basically copied the code from movement functions and edited it to fit the
-		const FRotator Rotation = Controller->GetControlRotation();
-		const FRotator YawRotation(0, Rotation.Yaw, 0);
-		const FVector Forward = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		//CapsuleComponent->AddImpulse(Forward * pushForce * CapsuleComponent->GetMass());
-		CapsuleComponent->AddForceAtLocationLocal(Forward * pushForce * speed, FVector::ZeroVector);
-	*/
-
-	// Attempt on trying to get specific key inputs
-	/*
-	if (GetInputAxisKeyValue(EKeys::C))
-	{
-		GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Black, TEXT("My balls itch"));
-		int launchForce = 500;
-		const FVector Forward = GetActorRotation().Vector();
-		LaunchCharacter(Forward * launchForce, false, false);
-	}
-	*/
